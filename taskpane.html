@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Workpaper Document Manager</title>
+
+<!-- Office.js (must load before anything else) -->
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+<!-- JSZip for export packaging -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════════════════
+   Design tokens & reset
+   ═══════════════════════════════════════════════════════ */
+:root {
+  --brand:       #0078D4;   /* Microsoft blue */
+  --brand-dark:  #005A9E;
+  --brand-light: #EFF6FC;
+  --success:     #107C10;
+  --danger:      #C50F1F;
+  --warn:        #C19C00;
+  --neutral-50:  #F9FAFB;
+  --neutral-100: #F3F4F6;
+  --neutral-200: #E5E7EB;
+  --neutral-400: #9CA3AF;
+  --neutral-600: #4B5563;
+  --neutral-800: #1F2937;
+  --radius:      6px;
+  --shadow:      0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.06);
+  --transition:  .15s ease;
+}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html,body { height: 100%; font-family: "Segoe UI", system-ui, sans-serif;
+            font-size: 13px; color: var(--neutral-800); background: #fff; }
+
+/* ═══════════════════════════════════════════════════════
+   Layout
+   ═══════════════════════════════════════════════════════ */
+.app { display: flex; flex-direction: column; height: 100%; }
+
+/* Nav tabs */
+.nav { display: flex; border-bottom: 2px solid var(--neutral-200);
+       background: var(--neutral-50); flex-shrink: 0; }
+.nav-btn {
+  flex: 1; padding: 10px 4px; background: none; border: none;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  cursor: pointer; font-size: 11px; font-weight: 600;
+  color: var(--neutral-600); letter-spacing: .3px;
+  transition: color var(--transition), border-color var(--transition);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.nav-btn svg { width: 18px; height: 18px; }
+.nav-btn:hover { color: var(--brand); }
+.nav-btn.active { color: var(--brand); border-bottom-color: var(--brand); }
+
+/* View panels */
+.view { display: none; flex: 1; overflow-y: auto; padding: 14px; flex-direction: column; gap: 12px; }
+.view.active { display: flex; }
+
+/* ═══════════════════════════════════════════════════════
+   Components
+   ═══════════════════════════════════════════════════════ */
+h2 { font-size: 14px; font-weight: 700; color: var(--neutral-800); }
+
+.label { font-size: 11px; font-weight: 600; color: var(--neutral-600);
+         margin-bottom: 4px; display: block; }
+
+select, .select {
+  width: 100%; padding: 7px 10px; border: 1px solid var(--neutral-200);
+  border-radius: var(--radius); font-size: 12px; background: #fff;
+  color: var(--neutral-800); appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239CA3AF' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  background-size: 14px; cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+select:focus { outline: none; border-color: var(--brand);
+               box-shadow: 0 0 0 3px rgba(0,120,212,.15); }
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--neutral-200); border-radius: var(--radius);
+  padding: 28px 16px; text-align: center; cursor: pointer;
+  background: var(--neutral-50);
+  transition: border-color var(--transition), background var(--transition);
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--brand); background: var(--brand-light);
+}
+.drop-zone svg { width: 36px; height: 36px; color: var(--neutral-400); margin-bottom: 8px; }
+.drop-zone p  { font-size: 12px; color: var(--neutral-600); line-height: 1.5; }
+.drop-zone strong { color: var(--brand); }
+
+/* File queue */
+.file-queue { display: flex; flex-direction: column; gap: 6px; }
+.file-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--neutral-50); border: 1px solid var(--neutral-200);
+  border-radius: var(--radius); padding: 7px 10px;
+}
+.file-item .file-icon { font-size: 18px; flex-shrink: 0; }
+.file-item .file-info { flex: 1; min-width: 0; }
+.file-item .file-name { font-size: 11px; font-weight: 600;
+                        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-item .file-size { font-size: 10px; color: var(--neutral-400); }
+.file-item .remove-btn {
+  background: none; border: none; cursor: pointer; padding: 2px;
+  color: var(--neutral-400); transition: color var(--transition);
+  flex-shrink: 0;
+}
+.file-item .remove-btn:hover { color: var(--danger); }
+.file-item .progress-bar {
+  height: 3px; border-radius: 2px; background: var(--neutral-200);
+  margin-top: 4px; overflow: hidden;
+}
+.file-item .progress-fill {
+  height: 100%; background: var(--brand); border-radius: 2px;
+  transition: width .3s ease;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 8px 16px; border-radius: var(--radius);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+  border: none;
+}
+.btn-primary { background: var(--brand); color: #fff; }
+.btn-primary:hover { background: var(--brand-dark); }
+.btn-secondary { background: var(--neutral-100); color: var(--neutral-800);
+                 border: 1px solid var(--neutral-200); }
+.btn-secondary:hover { background: var(--neutral-200); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { opacity: .85; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-full { width: 100%; }
+
+/* Document cards (Manage view) */
+.sheet-section { display: flex; flex-direction: column; gap: 6px; }
+.sheet-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 0; border-bottom: 1px solid var(--neutral-200);
+}
+.sheet-badge {
+  background: var(--brand); color: #fff; border-radius: 3px;
+  padding: 1px 6px; font-size: 10px; font-weight: 700;
+}
+.sheet-name { font-size: 12px; font-weight: 700; color: var(--neutral-800); }
+.sheet-count { font-size: 10px; color: var(--neutral-400); margin-left: auto; }
+
+.doc-card {
+  background: var(--neutral-50); border: 1px solid var(--neutral-200);
+  border-radius: var(--radius); padding: 9px 10px;
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.doc-card .doc-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.doc-card .doc-info { flex: 1; min-width: 0; }
+.doc-card .doc-name { font-size: 11px; font-weight: 600;
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-card .doc-meta { font-size: 10px; color: var(--neutral-400); margin-top: 1px; }
+.doc-card .doc-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* Export checkboxes */
+.export-section { display: flex; flex-direction: column; gap: 6px; }
+.export-sheet {
+  background: var(--neutral-50); border: 1px solid var(--neutral-200);
+  border-radius: var(--radius); overflow: hidden;
+}
+.export-sheet-header {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  cursor: pointer; user-select: none;
+}
+.export-sheet-header:hover { background: var(--neutral-100); }
+.export-sheet-header input[type=checkbox] { cursor: pointer; }
+.export-sheet-name { font-size: 12px; font-weight: 600; flex: 1; }
+.export-sheet-count { font-size: 10px; color: var(--neutral-400); }
+.export-sheet-files { padding: 0 12px 8px 30px; display: flex; flex-direction: column; gap: 4px; }
+.export-file-row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.export-file-row input[type=checkbox] { cursor: pointer; }
+
+/* Toast notifications */
+.toast-container { position: fixed; bottom: 12px; right: 12px; left: 12px;
+                   z-index: 9999; display: flex; flex-direction: column; gap: 6px; }
+.toast {
+  padding: 10px 14px; border-radius: var(--radius); font-size: 12px;
+  font-weight: 500; box-shadow: var(--shadow); animation: slideUp .2s ease;
+  display: flex; align-items: center; gap: 8px;
+}
+.toast.success { background: #E6F2E6; color: var(--success); border: 1px solid #A3D9A3; }
+.toast.error   { background: #FDE8E8; color: var(--danger);  border: 1px solid #FCA5A5; }
+.toast.info    { background: var(--brand-light); color: var(--brand); border: 1px solid #BAD7F5; }
+@keyframes slideUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 32px 16px; color: var(--neutral-400); }
+.empty-state svg { width: 40px; height: 40px; margin-bottom: 10px; opacity: .5; }
+.empty-state p { font-size: 12px; line-height: 1.6; }
+
+/* Reassign modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10000; padding: 16px;
+}
+.modal-overlay.hidden { display: none; }
+.modal {
+  background: #fff; border-radius: 8px; padding: 20px; width: 100%;
+  max-width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,.2);
+}
+.modal h3 { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.modal-actions .btn { flex: 1; }
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(255,255,255,.75);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; z-index: 9998; gap: 12px;
+}
+.loading-overlay.hidden { display: none; }
+.spinner {
+  width: 28px; height: 28px; border: 3px solid var(--neutral-200);
+  border-top-color: var(--brand); border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 12px; color: var(--neutral-600); font-weight: 500; }
+
+/* Misc */
+.section { display: flex; flex-direction: column; gap: 6px; }
+.divider { height: 1px; background: var(--neutral-200); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Navigation tabs ── -->
+  <nav class="nav">
+    <button class="nav-btn active" data-view="upload" onclick="switchView('upload')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+      Upload
+    </button>
+    <button class="nav-btn" data-view="manage" onclick="switchView('manage')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      Manage
+    </button>
+    <button class="nav-btn" data-view="export" onclick="switchView('export')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+      </svg>
+      Export
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════
+       VIEW 1: Upload Documents
+       ══════════════════════════════════════════════════ -->
+  <div class="view active" id="view-upload">
+    <h2>Upload Documents</h2>
+
+    <div class="section">
+      <label class="label" for="sheet-select">Attach to sheet</label>
+      <select id="sheet-select"></select>
+    </div>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+      <p><strong>Click to browse</strong> or drag & drop files here</p>
+      <p style="margin-top:4px;font-size:10px;color:var(--neutral-400)">
+        Excel · Word · PDF · Images · Max 250 MB each
+      </p>
+    </div>
+    <input type="file" id="file-input" multiple accept=".xlsx,.xls,.xlsm,.docx,.doc,.pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.svg" style="display:none"/>
+
+    <div class="file-queue" id="file-queue"></div>
+
+    <button class="btn btn-primary btn-full" id="upload-btn" onclick="startUpload()" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+      Upload Files
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       VIEW 2: Manage Documents
+       ══════════════════════════════════════════════════ -->
+  <div class="view" id="view-manage">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2>Manage Documents</h2>
+      <button class="btn btn-secondary btn-sm" onclick="loadManage()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+        </svg>
+        Refresh
+      </button>
+    </div>
+
+    <div id="manage-content">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <p>No documents uploaded yet.<br/>Use Upload to attach files to your sheets.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       VIEW 3: Export Documents
+       ══════════════════════════════════════════════════ -->
+  <div class="view" id="view-export">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2>Export Documents</h2>
+      <button class="btn btn-secondary btn-sm" onclick="loadExport()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+        </svg>
+        Refresh
+      </button>
+    </div>
+
+    <p style="font-size:11px;color:var(--neutral-600);line-height:1.5;">
+      Select sheets and documents to include. Export produces a ZIP containing the
+      workbook and supporting documents, ordered by visible sheet.
+    </p>
+
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="selectAllExport(true)">Select All</button>
+      <button class="btn btn-secondary btn-sm" onclick="selectAllExport(false)">Deselect All</button>
+    </div>
+
+    <div class="export-section" id="export-content">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        </svg>
+        <p>No documents to export.</p>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full" id="export-btn" onclick="startExport()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+      </svg>
+      Export as ZIP
+    </button>
+  </div>
+
+</div><!-- /.app -->
+
+<!-- ── Reassign modal ── -->
+<div class="modal-overlay hidden" id="reassign-modal">
+  <div class="modal">
+    <h3>Move to another sheet</h3>
+    <label class="label" for="reassign-select">Target sheet</label>
+    <select id="reassign-select"></select>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeReassign()">Cancel</button>
+      <button class="btn btn-primary"   onclick="confirmReassign()">Move</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Loading overlay ── -->
+<div class="loading-overlay hidden" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Working…</div>
+</div>
+
+<!-- ── Toast container ── -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     JavaScript
+     ══════════════════════════════════════════════════════ -->
+<script>
+
+// ── Dynamic imports from inline modules (bundled approach) ──────────────
+// In production these come from auth.js and store.js.
+// For simplicity in this single-file deployment they are inlined below.
+
+/* ─── auth.js inlined ──────────────────────────────────────────────── */
+const CONFIG = {
+  clientId:    "03bd246e-b467-40f4-8ef5-02604df07304",
+  tenantId:    "9f2dfd2a-3011-400e-bb7e-c12abe2baefd",
+  redirectUri: window.location.href.split("?")[0],
+  spSiteUrl:   "https://fyielitetest.sharepoint.com/sites/WorkpaperAddin",
+  spLibrary:   "WorkpaperDocs",
+  graphBase:   "https://graph.microsoft.com/v1.0",
+  scopes:      ["Files.ReadWrite", "Sites.ReadWrite.All"],
+};
+
+let _token = null, _tokenExp = 0;
+
+async function getToken() {
+  if (_token && Date.now() < _tokenExp - 60_000) return _token;
+  return await _msalFallback();
+}
+
+async function _msalFallback() {
+  if (!window.msal) await _loadScript("https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js");
+  if (!window._msalApp) {
+    window._msalApp = new msal.PublicClientApplication({
+      auth: { clientId: CONFIG.clientId, authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`, redirectUri: CONFIG.redirectUri },
+      cache: { cacheLocation: "sessionStorage" },
+    });
+    await window._msalApp.initialize();
+  }
+  const app = window._msalApp;
+  const req = { scopes: CONFIG.scopes, account: app.getAllAccounts()[0] };
+  try {
+    const r = await app.acquireTokenSilent(req);
+    _token = r.accessToken; _tokenExp = r.expiresOn.getTime(); return _token;
+  } catch {
+    const r = await app.acquireTokenPopup(req);
+    _token = r.accessToken; _tokenExp = r.expiresOn.getTime(); return _token;
+  }
+}
+
+function _loadScript(src) {
+  return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+}
+
+async function gFetch(path, opts={}) {
+  const tok = await getToken();
+  const url = path.startsWith("http") ? path : `${CONFIG.graphBase}${path}`;
+  const res = await fetch(url, { ...opts, headers: { Authorization:`Bearer ${tok}`, ...(opts.headers||{}) } });
+  if (!res.ok) { const t=await res.text(); throw new Error(`Graph ${res.status}: ${t}`); }
+  return res.status===204 ? null : res.json();
+}
+async function gFetchRaw(path, opts={}) {
+  const tok = await getToken();
+  const url = path.startsWith("http") ? path : `${CONFIG.graphBase}${path}`;
+  const res = await fetch(url, { ...opts, headers: { Authorization:`Bearer ${tok}`, ...(opts.headers||{}) } });
+  if (!res.ok) throw new Error(`Graph ${res.status}`);
+  return res;
+}
+
+/* ─── store.js inlined ─────────────────────────────────────────────── */
+let _driveId = null;
+async function getDriveId() {
+  if (_driveId) return _driveId;
+  const host = new URL(CONFIG.spSiteUrl).hostname;
+  const sitePath = new URL(CONFIG.spSiteUrl).pathname;
+  const site = await gFetch(`/sites/${host}:${sitePath}`);
+  const drives = await gFetch(`/sites/${site.id}/drives`);
+  const lib = drives.value.find(d => d.name === CONFIG.spLibrary);
+  if (!lib) throw new Error(`Document library "${CONFIG.spLibrary}" not found. Please create it in SharePoint first.`);
+  _driveId = lib.id;
+  return _driveId;
+}
+
+let _wbId = null;
+async function getWorkbookId() {
+  if (_wbId) return _wbId;
+  _wbId = await Excel.run(async ctx => {
+    const parts = ctx.workbook.customXmlParts;
+    parts.load("items");
+    await ctx.sync();
+    for (const p of parts.items) {
+      p.load("id"); await ctx.sync();
+      const xml = await p.getXml(); await ctx.sync();
+      const m = xml.value.match(/<WorkpaperDocsMeta[^>]*workbookId="([^"]+)"/);
+      if (m) return m[1];
+    }
+    const id = crypto.randomUUID();
+    ctx.workbook.customXmlParts.add(`<WorkpaperDocsMeta workbookId="${id}" xmlns="wpdocs"/>`);
+    await ctx.sync();
+    return id;
+  });
+  return _wbId;
+}
+
+async function readMeta() {
+  try {
+    const driveId = await getDriveId();
+    const wbId    = await getWorkbookId();
+    const item    = await gFetch(`/drives/${driveId}/root:/${wbId}/_meta.json`);
+    const res     = await gFetchRaw(item["@microsoft.graph.downloadUrl"]);
+    const meta    = await res.json();
+    return { meta, eTag: item.eTag||"*" };
+  } catch { return { meta:{}, eTag:null }; }
+}
+
+async function writeMeta(meta, eTag) {
+  const driveId = await getDriveId();
+  const wbId    = await getWorkbookId();
+  const path    = `/drives/${driveId}/root:/${wbId}/_meta.json:/content`;
+  const headers = { "Content-Type":"application/json" };
+  if (eTag && eTag!=="*") headers["If-Match"]=eTag;
+  await gFetch(path, { method:"PUT", headers, body:JSON.stringify(meta,null,2) });
+}
+
+async function uploadFile(file, sheetId, sheetName, onProgress) {
+  const driveId  = await getDriveId();
+  const wbId     = await getWorkbookId();
+  const fileId   = crypto.randomUUID();
+  const safeName = file.name.replace(/[/\\:*?"<>|]/g,"_");
+  const spPath   = `${wbId}/${sheetId}/${fileId}_${safeName}`;
+  const enc      = spPath.split("/").map(encodeURIComponent).join("/");
+
+  let itemId;
+  if (file.size > 4*1024*1024) {
+    itemId = await _resumableUpload(driveId, enc, file, onProgress);
+  } else {
+    onProgress && onProgress(50);
+    const res = await gFetch(`/drives/${driveId}/root:/${enc}:/content`,
+      { method:"PUT", headers:{"Content-Type":file.type||"application/octet-stream"}, body:file });
+    itemId = res.id;
+    onProgress && onProgress(100);
+  }
+
+  const { meta, eTag } = await readMeta();
+  if (!meta[sheetId]) meta[sheetId] = { name:sheetName, files:[] };
+  meta[sheetId].name = sheetName;
+  const record = { id:fileId, itemId, name:file.name, size:file.size, mime:file.type, spPath, uploaded:new Date().toISOString() };
+  meta[sheetId].files.push(record);
+  await writeMeta(meta, eTag);
+  return record;
+}
+
+async function _resumableUpload(driveId, enc, file, onProgress) {
+  const session = await gFetch(`/drives/${driveId}/root:/${enc}:/createUploadSession`,
+    { method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ item:{"@microsoft.graph.conflictBehavior":"rename"} }) });
+  const CHUNK = 5*1024*1024;
+  let offset=0, result;
+  while (offset < file.size) {
+    const end   = Math.min(offset+CHUNK, file.size)-1;
+    const chunk = file.slice(offset, end+1);
+    result = await fetch(session.uploadUrl, {
+      method:"PUT",
+      headers:{"Content-Range":`bytes ${offset}-${end}/${file.size}`,"Content-Length":String(chunk.size)},
+      body:chunk,
+    }).then(r=>r.json());
+    offset=end+1;
+    onProgress && onProgress(Math.round(offset/file.size*90));
+  }
+  onProgress && onProgress(100);
+  return result.id;
+}
+
+async function listDocuments() {
+  const { meta } = await readMeta();
+  return meta;
+}
+
+async function reassignDoc(fileId, fromSheetId, toSheetId, toSheetName) {
+  const driveId        = await getDriveId();
+  const wbId           = await getWorkbookId();
+  const { meta, eTag } = await readMeta();
+  const sm = meta[fromSheetId];
+  if (!sm) throw new Error("Source sheet not found");
+  const idx = sm.files.findIndex(f=>f.id===fileId);
+  if (idx===-1) throw new Error("File not found");
+  const rec      = sm.files[idx];
+  const safeName = rec.name.replace(/[/\\:*?"<>|]/g,"_");
+  const newPath  = `${wbId}/${toSheetId}/${fileId}_${safeName}`;
+  const encOld   = rec.spPath.split("/").map(encodeURIComponent).join("/");
+  await gFetch(`/drives/${driveId}/root:/${encOld}`, {
+    method:"PATCH", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ parentReference:{ path:`/drives/${driveId}/root:/${wbId}/${toSheetId}` }, name:`${fileId}_${safeName}` }),
+  });
+  sm.files.splice(idx,1);
+  if (!sm.files.length) delete meta[fromSheetId];
+  if (!meta[toSheetId]) meta[toSheetId]={ name:toSheetName, files:[] };
+  meta[toSheetId].name=toSheetName;
+  rec.spPath=newPath;
+  meta[toSheetId].files.push(rec);
+  await writeMeta(meta,eTag);
+}
+
+async function deleteDoc(fileId, sheetId) {
+  const driveId        = await getDriveId();
+  const { meta, eTag } = await readMeta();
+  const sm = meta[sheetId]; if (!sm) return;
+  const idx = sm.files.findIndex(f=>f.id===fileId); if (idx===-1) return;
+  const rec = sm.files[idx];
+  const enc = rec.spPath.split("/").map(encodeURIComponent).join("/");
+  try { await gFetch(`/drives/${driveId}/root:/${enc}`, { method:"DELETE" }); } catch{}
+  sm.files.splice(idx,1);
+  if (!sm.files.length) delete meta[sheetId];
+  await writeMeta(meta,eTag);
+}
+
+async function getDownloadUrl(fileId, sheetId) {
+  const driveId = await getDriveId();
+  const { meta } = await readMeta();
+  const rec = meta[sheetId]?.files.find(f=>f.id===fileId);
+  if (!rec) throw new Error("File not found");
+  const enc = rec.spPath.split("/").map(encodeURIComponent).join("/");
+  const item = await gFetch(`/drives/${driveId}/root:/${enc}`);
+  return item["@microsoft.graph.downloadUrl"];
+}
+
+/* ─── Excel sheet helpers ──────────────────────────────────────────── */
+async function getAllSheets() {
+  return await Excel.run(async ctx => {
+    const sheets = ctx.workbook.worksheets;
+    sheets.load("items/name,items/id,items/visibility");
+    await ctx.sync();
+    return sheets.items.map(s => ({ id:s.id, name:s.name, visible:s.visibility==="Visible" }));
+  });
+}
+
+async function getActiveSheetId() {
+  return await Excel.run(async ctx => {
+    const s = ctx.workbook.worksheets.getActiveWorksheet();
+    s.load("id,name");
+    await ctx.sync();
+    return { id:s.id, name:s.name };
+  });
+}
+
+/* ─── UI helpers ───────────────────────────────────────────────────── */
+function showLoading(msg="Working…") {
+  document.getElementById("loading-text").textContent=msg;
+  document.getElementById("loading").classList.remove("hidden");
+}
+function hideLoading() { document.getElementById("loading").classList.add("hidden"); }
+
+function toast(msg, type="info", duration=3500) {
+  const c = document.getElementById("toast-container");
+  const t = document.createElement("div");
+  t.className=`toast ${type}`;
+  const icons = { success:"✓", error:"✕", info:"ℹ" };
+  t.innerHTML=`<span>${icons[type]||"ℹ"}</span> ${msg}`;
+  c.appendChild(t);
+  setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),300); }, duration);
+}
+
+function fileIcon(mime="", name="") {
+  const ext = name.split(".").pop().toLowerCase();
+  if (["xlsx","xls","xlsm"].includes(ext))    return "📗";
+  if (["docx","doc"].includes(ext))            return "📘";
+  if (["pdf"].includes(ext))                   return "📕";
+  if (["png","jpg","jpeg","gif","bmp","svg","tiff"].includes(ext)) return "🖼️";
+  return "📄";
+}
+
+function fmtSize(bytes) {
+  if (bytes<1024)       return `${bytes} B`;
+  if (bytes<1048576)    return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1048576).toFixed(1)} MB`;
+}
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"});
+}
+
+/* ─── View switching ────────────────────────────────────────────────── */
+window.switchView = function(view) {
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById(`view-${view}`).classList.add("active");
+  document.querySelector(`[data-view="${view}"]`).classList.add("active");
+  if (view==="manage") loadManage();
+  if (view==="export") loadExport();
+};
+
+/* ═══════════════════════════════════════════════════════
+   UPLOAD VIEW
+   ═══════════════════════════════════════════════════════ */
+let pendingFiles = [];
+
+async function initUpload() {
+  try {
+    const sheets = await getAllSheets();
+    const active = await getActiveSheetId();
+    const sel = document.getElementById("sheet-select");
+    sel.innerHTML = "";
+    sheets.forEach(s => {
+      const o = document.createElement("option");
+      o.value = s.id;
+      o.textContent = (s.visible ? "" : "🔒 ") + s.name;
+      if (s.id===active.id) o.selected=true;
+      sel.appendChild(o);
+    });
+  } catch(e) { toast("Could not load sheets: "+e.message,"error"); }
+}
+
+const dropZone = document.getElementById("drop-zone");
+const fileInput = document.getElementById("file-input");
+
+dropZone.addEventListener("dragover", e=>{ e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave",  ()=>dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", e=>{
+  e.preventDefault(); dropZone.classList.remove("dragover");
+  addFiles([...e.dataTransfer.files]);
+});
+fileInput.addEventListener("change", ()=>{ addFiles([...fileInput.files]); fileInput.value=""; });
+
+function addFiles(files) {
+  files.forEach(f => {
+    if (pendingFiles.find(p=>p.name===f.name && p.size===f.size)) return;
+    pendingFiles.push(f);
+  });
+  renderQueue();
+}
+
+function renderQueue() {
+  const q = document.getElementById("file-queue");
+  q.innerHTML = "";
+  pendingFiles.forEach((f,i) => {
+    const div = document.createElement("div");
+    div.className="file-item"; div.id=`qi-${i}`;
+    div.innerHTML=`
+      <span class="file-icon">${fileIcon(f.type,f.name)}</span>
+      <div class="file-info">
+        <div class="file-name">${f.name}</div>
+        <div class="file-size">${fmtSize(f.size)}</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:0%" id="prog-${i}"></div></div>
+      </div>
+      <button class="remove-btn" onclick="removeFile(${i})" title="Remove">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>`;
+    q.appendChild(div);
+  });
+  document.getElementById("upload-btn").disabled = pendingFiles.length===0;
+}
+
+window.removeFile = function(i) { pendingFiles.splice(i,1); renderQueue(); };
+
+window.startUpload = async function() {
+  if (!pendingFiles.length) return;
+  const sel = document.getElementById("sheet-select");
+  const sheetId   = sel.value;
+  const sheetName = sel.options[sel.selectedIndex].textContent.replace("🔒 ","");
+  document.getElementById("upload-btn").disabled=true;
+
+  let errors=0;
+  for (let i=0; i<pendingFiles.length; i++) {
+    const f = pendingFiles[i];
+    try {
+      await uploadFile(f, sheetId, sheetName, pct => {
+        const bar = document.getElementById(`prog-${i}`);
+        if (bar) bar.style.width=pct+"%";
+      });
+      const bar = document.getElementById(`prog-${i}`);
+      if (bar) { bar.style.background="var(--success)"; bar.style.width="100%"; }
+    } catch(e) {
+      errors++;
+      toast(`Failed to upload "${f.name}": ${e.message}`, "error", 6000);
+      const bar = document.getElementById(`prog-${i}`);
+      if (bar) { bar.closest(".file-item").style.borderColor="var(--danger)"; }
+    }
+  }
+
+  if (errors===0) {
+    toast(`${pendingFiles.length} file${pendingFiles.length!==1?"s":""} uploaded successfully!`, "success");
+    pendingFiles=[];
+    renderQueue();
+  } else {
+    toast(`${pendingFiles.length-errors} succeeded, ${errors} failed.`, "warn");
+    pendingFiles = pendingFiles.filter((_,i)=> {
+      const bar=document.getElementById(`prog-${i}`);
+      return bar && bar.closest(".file-item").style.borderColor==="var(--danger)";
+    });
+    renderQueue();
+  }
+  document.getElementById("upload-btn").disabled=pendingFiles.length===0;
+};
+
+/* ═══════════════════════════════════════════════════════
+   MANAGE VIEW
+   ═══════════════════════════════════════════════════════ */
+window.loadManage = async function() {
+  showLoading("Loading documents…");
+  try {
+    const meta   = await listDocuments();
+    const sheets = await getAllSheets();
+    const sheetMap = Object.fromEntries(sheets.map(s=>[s.id,s.name]));
+    const el = document.getElementById("manage-content");
+    el.innerHTML="";
+
+    const sheetIds = Object.keys(meta);
+    if (!sheetIds.length) {
+      el.innerHTML=`<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <p>No documents uploaded yet.<br/>Use Upload to attach files to your sheets.</p>
+      </div>`;
+      return;
+    }
+
+    sheetIds.forEach(sid => {
+      const sheetData = meta[sid];
+      const displayName = sheetMap[sid] || sheetData.name || sid;
+      const sec = document.createElement("div");
+      sec.className="sheet-section";
+      sec.innerHTML=`<div class="sheet-header">
+        <span class="sheet-badge">SHEET</span>
+        <span class="sheet-name">${displayName}</span>
+        <span class="sheet-count">${sheetData.files.length} file${sheetData.files.length!==1?"s":""}</span>
+      </div>`;
+
+      sheetData.files.forEach(f => {
+        const card = document.createElement("div");
+        card.className="doc-card";
+        card.innerHTML=`
+          <span class="doc-icon">${fileIcon(f.mime,f.name)}</span>
+          <div class="doc-info">
+            <div class="doc-name" title="${f.name}">${f.name}</div>
+            <div class="doc-meta">${fmtSize(f.size)} · Uploaded ${fmtDate(f.uploaded)}</div>
+          </div>
+          <div class="doc-actions">
+            <button class="btn btn-secondary btn-sm" title="View" onclick="viewDoc('${f.id}','${sid}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+            <button class="btn btn-secondary btn-sm" title="Move to sheet" onclick="openReassign('${f.id}','${sid}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+            </button>
+            <button class="btn btn-danger btn-sm" title="Delete" onclick="confirmDelete('${f.id}','${sid}','${f.name.replace(/'/g,"\\'")}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"/>
+              </svg>
+            </button>
+          </div>`;
+        sec.appendChild(card);
+      });
+      el.appendChild(sec);
+    });
+  } catch(e) {
+    toast("Failed to load documents: "+e.message,"error");
+  } finally { hideLoading(); }
+};
+
+window.viewDoc = async function(fileId, sheetId) {
+  showLoading("Getting download link…");
+  try {
+    const url = await getDownloadUrl(fileId, sheetId);
+    window.open(url,"_blank");
+  } catch(e) { toast("Could not open file: "+e.message,"error"); }
+  finally { hideLoading(); }
+};
+
+let _reassignTarget = null;
+window.openReassign = async function(fileId, sheetId) {
+  _reassignTarget = { fileId, sheetId };
+  const sheets = await getAllSheets();
+  const sel = document.getElementById("reassign-select");
+  sel.innerHTML="";
+  sheets.filter(s=>s.id!==sheetId).forEach(s=>{
+    const o=document.createElement("option"); o.value=s.id;
+    o.textContent=(s.visible?"":"🔒 ")+s.name; sel.appendChild(o);
+  });
+  document.getElementById("reassign-modal").classList.remove("hidden");
+};
+
+window.closeReassign = ()=>{ document.getElementById("reassign-modal").classList.add("hidden"); _reassignTarget=null; };
+
+window.confirmReassign = async function() {
+  if (!_reassignTarget) return;
+  const { fileId, sheetId } = _reassignTarget;
+  const sel = document.getElementById("reassign-select");
+  const toId   = sel.value;
+  const toName = sel.options[sel.selectedIndex].textContent.replace("🔒 ","");
+  closeReassign();
+  showLoading("Moving file…");
+  try {
+    await reassignDoc(fileId, sheetId, toId, toName);
+    toast("File moved successfully","success");
+    await loadManage();
+  } catch(e) { toast("Failed to move file: "+e.message,"error"); }
+  finally { hideLoading(); }
+};
+
+window.confirmDelete = function(fileId, sheetId, name) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  deleteDocUI(fileId, sheetId);
+};
+
+async function deleteDocUI(fileId, sheetId) {
+  showLoading("Deleting…");
+  try {
+    await deleteDoc(fileId, sheetId);
+    toast("File deleted","success");
+    await loadManage();
+  } catch(e) { toast("Failed to delete: "+e.message,"error"); }
+  finally { hideLoading(); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   EXPORT VIEW
+   ═══════════════════════════════════════════════════════ */
+window.loadExport = async function() {
+  showLoading("Loading export options…");
+  try {
+    const meta   = await listDocuments();
+    const sheets = await getAllSheets();
+    // Visible sheets only, in workbook order
+    const ordered = sheets.filter(s=>s.visible);
+    const el = document.getElementById("export-content");
+    el.innerHTML="";
+
+    const sheetsWithDocs = ordered.filter(s=> meta[s.id]?.files?.length);
+    if (!sheetsWithDocs.length) {
+      el.innerHTML=`<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      </svg><p>No documents to export.</p></div>`;
+      return;
+    }
+
+    sheetsWithDocs.forEach(s => {
+      const files = meta[s.id].files;
+      const box = document.createElement("div");
+      box.className="export-sheet";
+      const filesHtml = files.map(f=>`
+        <div class="export-file-row">
+          <input type="checkbox" class="export-file-cb" data-sheet="${s.id}" data-file="${f.id}" checked/>
+          <span>${fileIcon(f.mime,f.name)}</span>
+          <span>${f.name}</span>
+          <span style="color:var(--neutral-400);margin-left:auto">${fmtSize(f.size)}</span>
+        </div>`).join("");
+
+      box.innerHTML=`
+        <div class="export-sheet-header">
+          <input type="checkbox" class="export-sheet-cb" data-sheet="${s.id}" checked
+                 onchange="toggleSheetFiles('${s.id}',this.checked)"/>
+          <span class="export-sheet-name">${s.name}</span>
+          <span class="export-sheet-count">${files.length} file${files.length!==1?"s":""}</span>
+        </div>
+        <div class="export-sheet-files">${filesHtml}</div>`;
+      el.appendChild(box);
+    });
+  } catch(e) { toast("Failed to load: "+e.message,"error"); }
+  finally { hideLoading(); }
+};
+
+window.toggleSheetFiles = function(sheetId, checked) {
+  document.querySelectorAll(`.export-file-cb[data-sheet="${sheetId}"]`).forEach(cb=>cb.checked=checked);
+};
+
+window.selectAllExport = function(checked) {
+  document.querySelectorAll(".export-sheet-cb,.export-file-cb").forEach(cb=>cb.checked=checked);
+  if (checked) {
+    document.querySelectorAll(".export-sheet-cb").forEach(cb=>{
+      toggleSheetFiles(cb.dataset.sheet, true);
+    });
+  }
+};
+
+window.startExport = async function() {
+  // Gather selected files grouped by sheet
+  const selected = {};
+  document.querySelectorAll(".export-file-cb:checked").forEach(cb=>{
+    const { sheet, file } = cb.dataset;
+    if (!selected[sheet]) selected[sheet]=[];
+    selected[sheet].push(file);
+  });
+  if (!Object.keys(selected).length) { toast("Select at least one file to export","error"); return; }
+
+  showLoading("Building export package…");
+  try {
+    const meta   = await listDocuments();
+    const sheets = await getAllSheets();
+    // Visible sheets only, in workbook order
+    const ordered = sheets.filter(s=>s.visible);
+
+    const zip = new JSZip();
+
+    // Add workbook sheet index as a README
+    let readme = "Workpaper Export\n================\n\n";
+    for (const s of ordered) {
+      if (!selected[s.id]) continue;
+      readme += `\nSheet: ${s.name}\n${"─".repeat(30)}\n`;
+      const files = meta[s.id]?.files.filter(f=>selected[s.id].includes(f.id))||[];
+      files.forEach(f=>{ readme+=`  • ${f.name} (${fmtSize(f.size)})\n`; });
+    }
+    zip.file("README.txt", readme);
+
+    // Download and add files in order
+    let done=0, total=Object.values(selected).flat().length;
+    for (const s of ordered) {
+      if (!selected[s.id]) continue;
+      const files = meta[s.id]?.files.filter(f=>selected[s.id].includes(f.id))||[];
+      for (const f of files) {
+        document.getElementById("loading-text").textContent=`Downloading ${++done}/${total}: ${f.name}`;
+        const url  = await getDownloadUrl(f.id, s.id);
+        const res  = await fetch(url);
+        const blob = await res.blob();
+        const safeSheet = s.name.replace(/[/\\:*?"<>|]/g,"_");
+        const safeName  = f.name.replace(/[/\\:*?"<>|]/g,"_");
+        zip.file(`${safeSheet}/${safeName}`, blob);
+      }
+    }
+
+    document.getElementById("loading-text").textContent="Compressing ZIP…";
+    const content = await zip.generateAsync({ type:"blob", compression:"DEFLATE", compressionOptions:{ level:6 } });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(content);
+    a.download = `Workpaper_Export_${new Date().toISOString().slice(0,10)}.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`Export complete – ${done} file${done!==1?"s":""} packaged!`, "success");
+  } catch(e) { toast("Export failed: "+e.message,"error",8000); }
+  finally { hideLoading(); }
+};
+
+/* ─── Init ─────────────────────────────────────────────────────────── */
+Office.onReady(async () => {
+  // Route to correct view based on ?view= query param
+  const view = new URLSearchParams(window.location.search).get("view") || "upload";
+  switchView(view);
+  await initUpload();
+});
+
+</script>
+</body>
+</html>
