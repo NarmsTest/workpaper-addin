@@ -5,688 +5,115 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta http-equiv="X-UA-Compatible" content="IE=Edge"/>
 <title>Workpaper Document Manager</title>
-<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-:root {
-  --brand:#0078D4;--brand-dark:#005A9E;--brand-light:#EFF6FC;
-  --success:#107C10;--danger:#C50F1F;--warn:#C19C00;
-  --neutral-50:#F9FAFB;--neutral-100:#F3F4F6;--neutral-200:#E5E7EB;
-  --neutral-400:#9CA3AF;--neutral-600:#4B5563;--neutral-800:#1F2937;
-  --radius:6px;--shadow:0 1px 3px rgba(0,0,0,.12);--transition:.15s ease;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:"Segoe UI",system-ui,sans-serif;font-size:13px;color:var(--neutral-800);background:#fff}
-.app{display:flex;flex-direction:column;height:100%}
-.nav{display:flex;border-bottom:2px solid var(--neutral-200);background:var(--neutral-50);flex-shrink:0}
-.nav-btn{flex:1;padding:10px 4px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-size:11px;font-weight:600;color:var(--neutral-600);letter-spacing:.3px;transition:color var(--transition),border-color var(--transition);display:flex;flex-direction:column;align-items:center;gap:3px}
-.nav-btn svg{width:18px;height:18px}
-.nav-btn:hover{color:var(--brand)}
-.nav-btn.active{color:var(--brand);border-bottom-color:var(--brand)}
-.view{display:none;flex:1;overflow-y:auto;padding:14px;flex-direction:column;gap:12px}
-.view.active{display:flex}
-h2{font-size:14px;font-weight:700;color:var(--neutral-800)}
-.label{font-size:11px;font-weight:600;color:var(--neutral-600);margin-bottom:4px;display:block}
-select{width:100%;padding:7px 10px;border:1px solid var(--neutral-200);border-radius:var(--radius);font-size:12px;background:#fff;color:var(--neutral-800);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239CA3AF' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;background-size:14px;cursor:pointer}
-select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,120,212,.15)}
-.drop-zone{border:2px dashed var(--neutral-200);border-radius:var(--radius);padding:28px 16px;text-align:center;cursor:pointer;background:var(--neutral-50);transition:border-color var(--transition),background var(--transition)}
-.drop-zone:hover,.drop-zone.dragover{border-color:var(--brand);background:var(--brand-light)}
-.drop-zone svg{width:36px;height:36px;color:var(--neutral-400);margin-bottom:8px}
-.drop-zone p{font-size:12px;color:var(--neutral-600);line-height:1.5}
-.drop-zone strong{color:var(--brand)}
-.file-queue{display:flex;flex-direction:column;gap:6px}
-.file-item{display:flex;align-items:center;gap:8px;background:var(--neutral-50);border:1px solid var(--neutral-200);border-radius:var(--radius);padding:7px 10px}
-.file-icon{font-size:18px;flex-shrink:0}
-.file-info{flex:1;min-width:0}
-.file-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.file-size{font-size:10px;color:var(--neutral-400)}
-.remove-btn{background:none;border:none;cursor:pointer;padding:2px;color:var(--neutral-400);transition:color var(--transition);flex-shrink:0}
-.remove-btn:hover{color:var(--danger)}
-.progress-bar{height:3px;border-radius:2px;background:var(--neutral-200);margin-top:4px;overflow:hidden}
-.progress-fill{height:100%;background:var(--brand);border-radius:2px;transition:width .3s ease}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;transition:background var(--transition),opacity var(--transition);border:none}
-.btn-primary{background:var(--brand);color:#fff}
-.btn-primary:hover{background:var(--brand-dark)}
-.btn-secondary{background:var(--neutral-100);color:var(--neutral-800);border:1px solid var(--neutral-200)}
-.btn-secondary:hover{background:var(--neutral-200)}
-.btn-danger{background:var(--danger);color:#fff}
-.btn-danger:hover{opacity:.85}
-.btn:disabled{opacity:.45;cursor:not-allowed}
-.btn-sm{padding:4px 10px;font-size:11px}
-.btn-full{width:100%}
-.sheet-section{display:flex;flex-direction:column;gap:6px}
-.sheet-header{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--neutral-200)}
-.sheet-badge{background:var(--brand);color:#fff;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700}
-.sheet-name{font-size:12px;font-weight:700;color:var(--neutral-800)}
-.sheet-count{font-size:10px;color:var(--neutral-400);margin-left:auto}
-.doc-card{background:var(--neutral-50);border:1px solid var(--neutral-200);border-radius:var(--radius);padding:9px 10px;display:flex;align-items:flex-start;gap:8px}
-.doc-icon{font-size:20px;flex-shrink:0;margin-top:1px}
-.doc-info{flex:1;min-width:0}
-.doc-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.doc-meta{font-size:10px;color:var(--neutral-400);margin-top:1px}
-.doc-actions{display:flex;gap:4px;flex-shrink:0}
-.export-section{display:flex;flex-direction:column;gap:6px}
-.export-sheet{background:var(--neutral-50);border:1px solid var(--neutral-200);border-radius:var(--radius);overflow:hidden}
-.export-sheet-header{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none}
-.export-sheet-header:hover{background:var(--neutral-100)}
-.export-sheet-header input[type=checkbox]{cursor:pointer}
-.export-sheet-name{font-size:12px;font-weight:600;flex:1}
-.export-sheet-count{font-size:10px;color:var(--neutral-400)}
-.export-sheet-files{padding:0 12px 8px 30px;display:flex;flex-direction:column;gap:4px}
-.export-file-row{display:flex;align-items:center;gap:6px;font-size:11px}
-.export-file-row input[type=checkbox]{cursor:pointer}
-.toast-container{position:fixed;bottom:12px;right:12px;left:12px;z-index:9999;display:flex;flex-direction:column;gap:6px}
-.toast{padding:10px 14px;border-radius:var(--radius);font-size:12px;font-weight:500;box-shadow:var(--shadow);animation:slideUp .2s ease;display:flex;align-items:center;gap:8px}
-.toast.success{background:#E6F2E6;color:var(--success);border:1px solid #A3D9A3}
-.toast.error{background:#FDE8E8;color:var(--danger);border:1px solid #FCA5A5}
-.toast.info{background:var(--brand-light);color:var(--brand);border:1px solid #BAD7F5}
-@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.empty-state{text-align:center;padding:32px 16px;color:var(--neutral-400)}
-.empty-state svg{width:40px;height:40px;margin-bottom:10px;opacity:.5}
-.empty-state p{font-size:12px;line-height:1.6}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:10000;padding:16px}
-.modal-overlay.hidden{display:none}
-.modal{background:#fff;border-radius:8px;padding:20px;width:100%;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
-.modal h3{font-size:14px;font-weight:700;margin-bottom:14px}
-.modal-actions{display:flex;gap:8px;margin-top:16px}
-.modal-actions .btn{flex:1}
-.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.75);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;gap:12px}
-.loading-overlay.hidden{display:none}
-.spinner{width:28px;height:28px;border:3px solid var(--neutral-200);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{font-size:12px;color:var(--neutral-600);font-weight:500}
-.section{display:flex;flex-direction:column;gap:6px}
+body { font-family: "Segoe UI", sans-serif; padding: 20px; font-size: 13px; }
+#log { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; margin-top: 12px; font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
+.ok  { color: #107C10; font-weight: bold; }
+.err { color: #C50F1F; font-weight: bold; }
+.inf { color: #0078D4; }
+h2 { font-size: 15px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
-<div class="app">
-  <nav class="nav">
-    <button class="nav-btn active" data-view="upload" onclick="switchView('upload')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-      Upload
-    </button>
-    <button class="nav-btn" data-view="manage" onclick="switchView('manage')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      Manage
-    </button>
-    <button class="nav-btn" data-view="export" onclick="switchView('export')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      Export
-    </button>
-  </nav>
-
-  <div class="view active" id="view-upload">
-    <h2>Upload Documents</h2>
-    <div class="section">
-      <label class="label" for="sheet-select">Attach to sheet</label>
-      <select id="sheet-select"></select>
-    </div>
-    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-      <p><strong>Click to browse</strong> or drag &amp; drop files here</p>
-      <p style="margin-top:4px;font-size:10px;color:var(--neutral-400)">Excel · Word · PDF · Images · Max 250 MB each</p>
-    </div>
-    <input type="file" id="file-input" multiple accept=".xlsx,.xls,.xlsm,.docx,.doc,.pdf,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.svg" style="display:none"/>
-    <div class="file-queue" id="file-queue"></div>
-    <button class="btn btn-primary btn-full" id="upload-btn" onclick="startUpload()" disabled>Upload Files</button>
-  </div>
-
-  <div class="view" id="view-manage">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <h2>Manage Documents</h2>
-      <button class="btn btn-secondary btn-sm" onclick="loadManage()">Refresh</button>
-    </div>
-    <div id="manage-content">
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <p>No documents uploaded yet.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="view" id="view-export">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-      <h2>Export Documents</h2>
-      <button class="btn btn-secondary btn-sm" onclick="loadExport()">Refresh</button>
-    </div>
-    <p style="font-size:11px;color:var(--neutral-600);line-height:1.5">Select sheets and documents to include. Export produces a ZIP ordered by visible sheet.</p>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-secondary btn-sm" onclick="selectAllExport(true)">Select All</button>
-      <button class="btn btn-secondary btn-sm" onclick="selectAllExport(false)">Deselect All</button>
-    </div>
-    <div class="export-section" id="export-content">
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
-        <p>No documents to export.</p>
-      </div>
-    </div>
-    <button class="btn btn-primary btn-full" id="export-btn" onclick="startExport()">Export as ZIP</button>
-  </div>
-</div>
-
-<div class="modal-overlay hidden" id="reassign-modal">
-  <div class="modal">
-    <h3>Move to another sheet</h3>
-    <label class="label" for="reassign-select">Target sheet</label>
-    <select id="reassign-select"></select>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeReassign()">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmReassign()">Move</button>
-    </div>
-  </div>
-</div>
-
-<div class="loading-overlay hidden" id="loading">
-  <div class="spinner"></div>
-  <div class="loading-text" id="loading-text">Working...</div>
-</div>
-
-<div class="toast-container" id="toast-container"></div>
+<h2>Workpaper Doc Manager — Diagnostics</h2>
+<p style="font-size:12px;color:#4b5563">This page is logging all errors to help diagnose the add-in issue.</p>
+<div id="log">Starting...\n</div>
 
 <script type="text/javascript">
+var log = document.getElementById("log");
 
-var CONFIG = {
-  clientId:    "03bd246e-b467-40f4-8ef5-02604df07304",
-  tenantId:    "9f2dfd2a-3011-400e-bb7e-c12abe2baefd",
-  redirectUri: "https://narmstest.github.io/workpaper-addin/taskpane.html",
-  spSiteUrl:   "https://fyielitetest.sharepoint.com/sites/WorkpaperAddin",
-  spLibrary:   "WorkpaperDocs",
-  graphBase:   "https://graph.microsoft.com/v1.0",
-  scopes:      ["Files.ReadWrite", "Sites.ReadWrite.All"]
+function addLog(msg, type) {
+  type = type || "inf";
+  var line = document.createElement("div");
+  line.className = type;
+  line.textContent = new Date().toISOString().slice(11,23) + " " + msg;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+// Catch all unhandled errors
+window.onerror = function(msg, src, line, col, err) {
+  addLog("WINDOW ERROR: " + msg + " (line " + line + ")", "err");
+  return false;
 };
 
-var _token = null, _tokenExp = 0;
+window.onunhandledrejection = function(e) {
+  addLog("UNHANDLED PROMISE: " + (e.reason && e.reason.message ? e.reason.message : String(e.reason)), "err");
+};
 
-function getToken() {
-  if (_token && Date.now() < _tokenExp - 60000) return Promise.resolve(_token);
-  return _msalFallback();
+addLog("Page loaded", "ok");
+addLog("Checking Office.js...", "inf");
+
+// Check if Office.js loaded
+if (typeof Office === "undefined") {
+  addLog("Office is NOT defined — Office.js failed to load", "err");
+} else {
+  addLog("Office object found: " + typeof Office, "ok");
+  addLog("Office.context: " + (Office.context ? "exists" : "null"), "inf");
 }
+</script>
 
-function _loadScript(src) {
-  return new Promise(function(res, rej) {
-    var s = document.createElement("script");
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"
+  onload="addLog('Office.js script loaded OK', 'ok')"
+  onerror="addLog('Office.js script FAILED to load', 'err')">
+</script>
 
-function _msalFallback() {
-  var p = Promise.resolve();
-  if (!window.msal) {
-    p = _loadScript("https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js");
+<script type="text/javascript">
+addLog("Waiting for Office.onReady...", "inf");
+
+function waitForOffice() {
+  if (typeof Office === "undefined") {
+    addLog("Office still not defined after load — fatal error", "err");
+    return;
   }
-  return p.then(function() {
-    if (!window._msalApp) {
-      window._msalApp = new msal.PublicClientApplication({
-        auth: { clientId: CONFIG.clientId, authority: "https://login.microsoftonline.com/" + CONFIG.tenantId, redirectUri: CONFIG.redirectUri },
-        cache: { cacheLocation: "sessionStorage" }
-      });
-      return window._msalApp.initialize();
-    }
-  }).then(function() {
-    var app = window._msalApp;
-    var accounts = app.getAllAccounts();
-    var req = { scopes: CONFIG.scopes, account: accounts[0] };
-    return app.acquireTokenSilent(req).catch(function() {
-      return app.acquireTokenPopup(req);
-    });
-  }).then(function(result) {
-    _token = result.accessToken;
-    _tokenExp = result.expiresOn.getTime();
-    return _token;
-  });
-}
+  try {
+    Office.onReady(function(info) {
+      addLog("Office.onReady fired!", "ok");
+      addLog("Host: " + (info.host || "unknown"), "ok");
+      addLog("Platform: " + (info.platform || "unknown"), "ok");
 
-function gFetch(path, opts) {
-  opts = opts || {};
-  return getToken().then(function(tok) {
-    var url = path.startsWith("http") ? path : CONFIG.graphBase + path;
-    var headers = Object.assign({ Authorization: "Bearer " + tok }, opts.headers || {});
-    return fetch(url, Object.assign({}, opts, { headers: headers }));
-  }).then(function(res) {
-    if (!res.ok) return res.text().then(function(t) { throw new Error("Graph " + res.status + ": " + t); });
-    return res.status === 204 ? null : res.json();
-  });
-}
-
-function gFetchRaw(path, opts) {
-  opts = opts || {};
-  return getToken().then(function(tok) {
-    var url = path.startsWith("http") ? path : CONFIG.graphBase + path;
-    var headers = Object.assign({ Authorization: "Bearer " + tok }, opts.headers || {});
-    return fetch(url, Object.assign({}, opts, { headers: headers }));
-  }).then(function(res) {
-    if (!res.ok) throw new Error("Graph " + res.status);
-    return res;
-  });
-}
-
-var _driveId = null;
-function getDriveId() {
-  if (_driveId) return Promise.resolve(_driveId);
-  var host = new URL(CONFIG.spSiteUrl).hostname;
-  var sitePath = new URL(CONFIG.spSiteUrl).pathname;
-  return gFetch("/sites/" + host + ":" + sitePath).then(function(site) {
-    return gFetch("/sites/" + site.id + "/drives");
-  }).then(function(drives) {
-    var lib = drives.value.find(function(d) { return d.name === CONFIG.spLibrary; });
-    if (!lib) throw new Error('Library "' + CONFIG.spLibrary + '" not found.');
-    _driveId = lib.id;
-    return _driveId;
-  });
-}
-
-var _wbId = null;
-function getWorkbookId() {
-  if (_wbId) return Promise.resolve(_wbId);
-  return Excel.run(function(ctx) {
-    var parts = ctx.workbook.customXmlParts;
-    parts.load("items");
-    return ctx.sync().then(function() {
-      var found = null;
-      var checks = parts.items.map(function(p) {
-        p.load("id");
-        return ctx.sync().then(function() {
-          return p.getXml();
-        }).then(function() {
-          return ctx.sync();
-        }).then(function() {
-          return p.getXml();
-        }).then(function(xml) {
-          var m = xml.value.match(/<WorkpaperDocsMeta[^>]*workbookId="([^"]+)"/);
-          if (m) found = m[1];
-        });
-      });
-      return Promise.all(checks).then(function() {
-        if (found) { _wbId = found; return _wbId; }
-        var id = "wb-" + Date.now() + "-" + Math.random().toString(36).substr(2,9);
-        ctx.workbook.customXmlParts.add('<WorkpaperDocsMeta workbookId="' + id + '" xmlns="wpdocs"/>');
-        return ctx.sync().then(function() { _wbId = id; return _wbId; });
-      });
-    });
-  });
-}
-
-function readMeta() {
-  return Promise.all([getDriveId(), getWorkbookId()]).then(function(vals) {
-    var driveId = vals[0], wbId = vals[1];
-    return gFetch("/drives/" + driveId + "/root:/" + wbId + "/_meta.json").then(function(item) {
-      return gFetchRaw(item["@microsoft.graph.downloadUrl"]).then(function(res) {
-        return res.json().then(function(meta) {
-          return { meta: meta, eTag: item.eTag || "*" };
-        });
-      });
-    }).catch(function() { return { meta: {}, eTag: null }; });
-  });
-}
-
-function writeMeta(meta, eTag) {
-  return Promise.all([getDriveId(), getWorkbookId()]).then(function(vals) {
-    var driveId = vals[0], wbId = vals[1];
-    var path = "/drives/" + driveId + "/root:/" + wbId + "/_meta.json:/content";
-    var headers = { "Content-Type": "application/json" };
-    if (eTag && eTag !== "*") headers["If-Match"] = eTag;
-    return gFetch(path, { method: "PUT", headers: headers, body: JSON.stringify(meta, null, 2) });
-  });
-}
-
-function uploadFile(file, sheetId, sheetName, onProgress) {
-  return Promise.all([getDriveId(), getWorkbookId()]).then(function(vals) {
-    var driveId = vals[0], wbId = vals[1];
-    var fileId = "f" + Date.now() + Math.random().toString(36).substr(2,6);
-    var safeName = file.name.replace(/[\/\\:*?"<>|]/g, "_");
-    var spPath = wbId + "/" + sheetId + "/" + fileId + "_" + safeName;
-    var enc = spPath.split("/").map(encodeURIComponent).join("/");
-    if (onProgress) onProgress(30);
-    return gFetch("/drives/" + driveId + "/root:/" + enc + ":/content", {
-      method: "PUT",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
-      body: file
-    }).then(function(res) {
-      if (onProgress) onProgress(80);
-      return readMeta().then(function(m) {
-        if (!m.meta[sheetId]) m.meta[sheetId] = { name: sheetName, files: [] };
-        m.meta[sheetId].name = sheetName;
-        var record = { id: fileId, itemId: res.id, name: file.name, size: file.size, mime: file.type, spPath: spPath, uploaded: new Date().toISOString() };
-        m.meta[sheetId].files.push(record);
-        return writeMeta(m.meta, m.eTag).then(function() {
-          if (onProgress) onProgress(100);
-          return record;
-        });
-      });
-    });
-  });
-}
-
-function listDocuments() {
-  return readMeta().then(function(m) { return m.meta; });
-}
-
-function reassignDoc(fileId, fromSheetId, toSheetId, toSheetName) {
-  return Promise.all([getDriveId(), getWorkbookId(), readMeta()]).then(function(vals) {
-    var driveId = vals[0], wbId = vals[1], m = vals[2];
-    var sm = m.meta[fromSheetId];
-    if (!sm) throw new Error("Source sheet not found");
-    var idx = sm.files.findIndex(function(f) { return f.id === fileId; });
-    if (idx === -1) throw new Error("File not found");
-    var rec = sm.files[idx];
-    var safeName = rec.name.replace(/[\/\\:*?"<>|]/g, "_");
-    var encOld = rec.spPath.split("/").map(encodeURIComponent).join("/");
-    return gFetch("/drives/" + driveId + "/root:/" + encOld, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ parentReference: { path: "/drives/" + driveId + "/root:/" + wbId + "/" + toSheetId }, name: fileId + "_" + safeName })
-    }).then(function() {
-      sm.files.splice(idx, 1);
-      if (!sm.files.length) delete m.meta[fromSheetId];
-      if (!m.meta[toSheetId]) m.meta[toSheetId] = { name: toSheetName, files: [] };
-      m.meta[toSheetId].name = toSheetName;
-      rec.spPath = wbId + "/" + toSheetId + "/" + fileId + "_" + safeName;
-      m.meta[toSheetId].files.push(rec);
-      return writeMeta(m.meta, m.eTag);
-    });
-  });
-}
-
-function deleteDoc(fileId, sheetId) {
-  return Promise.all([getDriveId(), readMeta()]).then(function(vals) {
-    var driveId = vals[0], m = vals[1];
-    var sm = m.meta[sheetId]; if (!sm) return;
-    var idx = sm.files.findIndex(function(f) { return f.id === fileId; }); if (idx === -1) return;
-    var rec = sm.files[idx];
-    var enc = rec.spPath.split("/").map(encodeURIComponent).join("/");
-    return gFetch("/drives/" + driveId + "/root:/" + enc, { method: "DELETE" }).catch(function(){}).then(function() {
-      sm.files.splice(idx, 1);
-      if (!sm.files.length) delete m.meta[sheetId];
-      return writeMeta(m.meta, m.eTag);
-    });
-  });
-}
-
-function getDownloadUrl(fileId, sheetId) {
-  return Promise.all([getDriveId(), readMeta()]).then(function(vals) {
-    var driveId = vals[0], m = vals[1];
-    var rec = m.meta[sheetId] && m.meta[sheetId].files.find(function(f) { return f.id === fileId; });
-    if (!rec) throw new Error("File not found");
-    var enc = rec.spPath.split("/").map(encodeURIComponent).join("/");
-    return gFetch("/drives/" + driveId + "/root:/" + enc).then(function(item) {
-      return item["@microsoft.graph.downloadUrl"];
-    });
-  });
-}
-
-function getAllSheets() {
-  return Excel.run(function(ctx) {
-    var sheets = ctx.workbook.worksheets;
-    sheets.load("items/name,items/id,items/visibility");
-    return ctx.sync().then(function() {
-      return sheets.items.map(function(s) { return { id: s.id, name: s.name, visible: s.visibility === "Visible" }; });
-    });
-  });
-}
-
-function getActiveSheetId() {
-  return Excel.run(function(ctx) {
-    var s = ctx.workbook.worksheets.getActiveWorksheet();
-    s.load("id,name");
-    return ctx.sync().then(function() { return { id: s.id, name: s.name }; });
-  });
-}
-
-function showLoading(msg) { document.getElementById("loading-text").textContent = msg || "Working..."; document.getElementById("loading").classList.remove("hidden"); }
-function hideLoading() { document.getElementById("loading").classList.add("hidden"); }
-
-function toast(msg, type, duration) {
-  type = type || "info"; duration = duration || 3500;
-  var c = document.getElementById("toast-container");
-  var t = document.createElement("div");
-  t.className = "toast " + type;
-  var icons = { success: "✓", error: "✕", info: "ℹ" };
-  t.innerHTML = "<span>" + (icons[type] || "ℹ") + "</span> " + msg;
-  c.appendChild(t);
-  setTimeout(function() { t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(function() { t.remove(); }, 300); }, duration);
-}
-
-function fileIcon(mime, name) {
-  name = name || "";
-  var ext = name.split(".").pop().toLowerCase();
-  if (["xlsx","xls","xlsm"].indexOf(ext) > -1) return "📗";
-  if (["docx","doc"].indexOf(ext) > -1) return "📘";
-  if (ext === "pdf") return "📕";
-  if (["png","jpg","jpeg","gif","bmp","svg","tiff"].indexOf(ext) > -1) return "🖼️";
-  return "📄";
-}
-
-function fmtSize(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1048576) return (bytes/1024).toFixed(1) + " KB";
-  return (bytes/1048576).toFixed(1) + " MB";
-}
-
-function fmtDate(iso) { return new Date(iso).toLocaleDateString(undefined, { day:"2-digit", month:"short", year:"numeric" }); }
-
-window.switchView = function(view) {
-  document.querySelectorAll(".view").forEach(function(v) { v.classList.remove("active"); });
-  document.querySelectorAll(".nav-btn").forEach(function(b) { b.classList.remove("active"); });
-  document.getElementById("view-" + view).classList.add("active");
-  document.querySelector("[data-view='" + view + "']").classList.add("active");
-  if (view === "manage") loadManage();
-  if (view === "export") loadExport();
-};
-
-var pendingFiles = [];
-
-function initUpload() {
-  return getAllSheets().then(function(sheets) {
-    return getActiveSheetId().then(function(active) {
-      var sel = document.getElementById("sheet-select");
-      sel.innerHTML = "";
-      sheets.forEach(function(s) {
-        var o = document.createElement("option");
-        o.value = s.id; o.textContent = s.name;
-        if (s.id === active.id) o.selected = true;
-        sel.appendChild(o);
-      });
-    });
-  }).catch(function(e) { toast("Could not load sheets: " + e.message, "error"); });
-}
-
-var dropZone = document.getElementById("drop-zone");
-var fileInput = document.getElementById("file-input");
-dropZone.addEventListener("dragover", function(e) { e.preventDefault(); dropZone.classList.add("dragover"); });
-dropZone.addEventListener("dragleave", function() { dropZone.classList.remove("dragover"); });
-dropZone.addEventListener("drop", function(e) { e.preventDefault(); dropZone.classList.remove("dragover"); addFiles(Array.from(e.dataTransfer.files)); });
-fileInput.addEventListener("change", function() { addFiles(Array.from(fileInput.files)); fileInput.value = ""; });
-
-function addFiles(files) {
-  files.forEach(function(f) {
-    if (!pendingFiles.find(function(p) { return p.name === f.name && p.size === f.size; })) pendingFiles.push(f);
-  });
-  renderQueue();
-}
-
-function renderQueue() {
-  var q = document.getElementById("file-queue");
-  q.innerHTML = "";
-  pendingFiles.forEach(function(f, i) {
-    var div = document.createElement("div");
-    div.className = "file-item"; div.id = "qi-" + i;
-    div.innerHTML = '<span class="file-icon">' + fileIcon(f.type, f.name) + '</span><div class="file-info"><div class="file-name">' + f.name + '</div><div class="file-size">' + fmtSize(f.size) + '</div><div class="progress-bar"><div class="progress-fill" style="width:0%" id="prog-' + i + '"></div></div></div><button class="remove-btn" onclick="removeFile(' + i + ')">✕</button>';
-    q.appendChild(div);
-  });
-  document.getElementById("upload-btn").disabled = pendingFiles.length === 0;
-}
-
-window.removeFile = function(i) { pendingFiles.splice(i, 1); renderQueue(); };
-
-window.startUpload = function() {
-  if (!pendingFiles.length) return;
-  var sel = document.getElementById("sheet-select");
-  var sheetId = sel.value;
-  var sheetName = sel.options[sel.selectedIndex].textContent;
-  document.getElementById("upload-btn").disabled = true;
-  var errors = 0;
-  var chain = Promise.resolve();
-  pendingFiles.forEach(function(f, i) {
-    chain = chain.then(function() {
-      return uploadFile(f, sheetId, sheetName, function(pct) {
-        var bar = document.getElementById("prog-" + i);
-        if (bar) bar.style.width = pct + "%";
-      }).catch(function(e) {
-        errors++;
-        toast('Failed: "' + f.name + '": ' + e.message, "error", 6000);
-      });
-    });
-  });
-  chain.then(function() {
-    if (errors === 0) { toast(pendingFiles.length + " file(s) uploaded!", "success"); pendingFiles = []; renderQueue(); }
-    else { toast((pendingFiles.length - errors) + " succeeded, " + errors + " failed.", "warn"); }
-    document.getElementById("upload-btn").disabled = pendingFiles.length === 0;
-  });
-};
-
-window.loadManage = function() {
-  showLoading("Loading documents...");
-  Promise.all([listDocuments(), getAllSheets()]).then(function(vals) {
-    var meta = vals[0], sheets = vals[1];
-    var sheetMap = {};
-    sheets.forEach(function(s) { sheetMap[s.id] = s.name; });
-    var el = document.getElementById("manage-content");
-    el.innerHTML = "";
-    var sheetIds = Object.keys(meta);
-    if (!sheetIds.length) { el.innerHTML = '<div class="empty-state"><p>No documents uploaded yet.</p></div>'; return; }
-    sheetIds.forEach(function(sid) {
-      var sheetData = meta[sid];
-      var displayName = sheetMap[sid] || sheetData.name || sid;
-      var sec = document.createElement("div"); sec.className = "sheet-section";
-      sec.innerHTML = '<div class="sheet-header"><span class="sheet-badge">SHEET</span><span class="sheet-name">' + displayName + '</span><span class="sheet-count">' + sheetData.files.length + ' file(s)</span></div>';
-      sheetData.files.forEach(function(f) {
-        var card = document.createElement("div"); card.className = "doc-card";
-        card.innerHTML = '<span class="doc-icon">' + fileIcon(f.mime, f.name) + '</span><div class="doc-info"><div class="doc-name" title="' + f.name + '">' + f.name + '</div><div class="doc-meta">' + fmtSize(f.size) + ' · ' + fmtDate(f.uploaded) + '</div></div><div class="doc-actions"><button class="btn btn-secondary btn-sm" onclick="viewDoc(\'' + f.id + '\',\'' + sid + '\')">View</button><button class="btn btn-secondary btn-sm" onclick="openReassign(\'' + f.id + '\',\'' + sid + '\')">Move</button><button class="btn btn-danger btn-sm" onclick="confirmDelete(\'' + f.id + '\',\'' + sid + '\',\'' + f.name.replace(/'/g,"\\'") + '\')">Del</button></div>';
-        sec.appendChild(card);
-      });
-      el.appendChild(sec);
-    });
-  }).catch(function(e) { toast("Failed to load: " + e.message, "error"); }).then(function() { hideLoading(); });
-};
-
-window.viewDoc = function(fileId, sheetId) {
-  showLoading("Getting link...");
-  getDownloadUrl(fileId, sheetId).then(function(url) { window.open(url, "_blank"); }).catch(function(e) { toast("Could not open: " + e.message, "error"); }).then(function() { hideLoading(); });
-};
-
-var _reassignTarget = null;
-window.openReassign = function(fileId, sheetId) {
-  _reassignTarget = { fileId: fileId, sheetId: sheetId };
-  getAllSheets().then(function(sheets) {
-    var sel = document.getElementById("reassign-select"); sel.innerHTML = "";
-    sheets.filter(function(s) { return s.id !== sheetId; }).forEach(function(s) {
-      var o = document.createElement("option"); o.value = s.id; o.textContent = s.name; sel.appendChild(o);
-    });
-    document.getElementById("reassign-modal").classList.remove("hidden");
-  });
-};
-
-window.closeReassign = function() { document.getElementById("reassign-modal").classList.add("hidden"); _reassignTarget = null; };
-
-window.confirmReassign = function() {
-  if (!_reassignTarget) return;
-  var fileId = _reassignTarget.fileId, sheetId = _reassignTarget.sheetId;
-  var sel = document.getElementById("reassign-select");
-  var toId = sel.value, toName = sel.options[sel.selectedIndex].textContent;
-  closeReassign(); showLoading("Moving...");
-  reassignDoc(fileId, sheetId, toId, toName).then(function() { toast("Moved!", "success"); return loadManage(); }).catch(function(e) { toast("Failed: " + e.message, "error"); hideLoading(); });
-};
-
-window.confirmDelete = function(fileId, sheetId, name) {
-  if (!confirm('Delete "' + name + '"?')) return;
-  showLoading("Deleting...");
-  deleteDoc(fileId, sheetId).then(function() { toast("Deleted", "success"); return loadManage(); }).catch(function(e) { toast("Failed: " + e.message, "error"); hideLoading(); });
-};
-
-window.loadExport = function() {
-  showLoading("Loading...");
-  Promise.all([listDocuments(), getAllSheets()]).then(function(vals) {
-    var meta = vals[0], sheets = vals[1];
-    var ordered = sheets.filter(function(s) { return s.visible; });
-    var el = document.getElementById("export-content"); el.innerHTML = "";
-    var sheetsWithDocs = ordered.filter(function(s) { return meta[s.id] && meta[s.id].files && meta[s.id].files.length; });
-    if (!sheetsWithDocs.length) { el.innerHTML = '<div class="empty-state"><p>No documents to export.</p></div>'; return; }
-    sheetsWithDocs.forEach(function(s) {
-      var files = meta[s.id].files;
-      var box = document.createElement("div"); box.className = "export-sheet";
-      var filesHtml = files.map(function(f) { return '<div class="export-file-row"><input type="checkbox" class="export-file-cb" data-sheet="' + s.id + '" data-file="' + f.id + '" checked/><span>' + fileIcon(f.mime, f.name) + '</span><span>' + f.name + '</span><span style="color:var(--neutral-400);margin-left:auto">' + fmtSize(f.size) + '</span></div>'; }).join("");
-      box.innerHTML = '<div class="export-sheet-header"><input type="checkbox" class="export-sheet-cb" data-sheet="' + s.id + '" checked onchange="toggleSheetFiles(\'' + s.id + '\',this.checked)"/><span class="export-sheet-name">' + s.name + '</span><span class="export-sheet-count">' + files.length + ' file(s)</span></div><div class="export-sheet-files">' + filesHtml + '</div>';
-      el.appendChild(box);
-    });
-  }).catch(function(e) { toast("Failed: " + e.message, "error"); }).then(function() { hideLoading(); });
-};
-
-window.toggleSheetFiles = function(sheetId, checked) {
-  document.querySelectorAll(".export-file-cb[data-sheet='" + sheetId + "']").forEach(function(cb) { cb.checked = checked; });
-};
-
-window.selectAllExport = function(checked) {
-  document.querySelectorAll(".export-sheet-cb,.export-file-cb").forEach(function(cb) { cb.checked = checked; });
-};
-
-window.startExport = function() {
-  var selected = {};
-  document.querySelectorAll(".export-file-cb:checked").forEach(function(cb) {
-    var sheet = cb.dataset.sheet, file = cb.dataset.file;
-    if (!selected[sheet]) selected[sheet] = [];
-    selected[sheet].push(file);
-  });
-  if (!Object.keys(selected).length) { toast("Select at least one file", "error"); return; }
-  showLoading("Building export...");
-  Promise.all([listDocuments(), getAllSheets()]).then(function(vals) {
-    var meta = vals[0], sheets = vals[1];
-    var ordered = sheets.filter(function(s) { return s.visible; });
-    var zip = new JSZip();
-    var readme = "Workpaper Export\n================\n\n";
-    ordered.forEach(function(s) {
-      if (!selected[s.id]) return;
-      readme += "\nSheet: " + s.name + "\n" + "─".repeat(30) + "\n";
-      var files = (meta[s.id] && meta[s.id].files || []).filter(function(f) { return selected[s.id].indexOf(f.id) > -1; });
-      files.forEach(function(f) { readme += "  • " + f.name + " (" + fmtSize(f.size) + ")\n"; });
-    });
-    zip.file("README.txt", readme);
-    var done = 0, total = Object.values(selected).reduce(function(a, b) { return a + b.length; }, 0);
-    var chain = Promise.resolve();
-    ordered.forEach(function(s) {
-      if (!selected[s.id]) return;
-      var files = (meta[s.id] && meta[s.id].files || []).filter(function(f) { return selected[s.id].indexOf(f.id) > -1; });
-      files.forEach(function(f) {
-        chain = chain.then(function() {
-          document.getElementById("loading-text").textContent = "Downloading " + (++done) + "/" + total + ": " + f.name;
-          return getDownloadUrl(f.id, s.id).then(function(url) { return fetch(url); }).then(function(res) { return res.blob(); }).then(function(blob) {
-            var safeSheet = s.name.replace(/[\/\\:*?"<>|]/g, "_");
-            var safeName = f.name.replace(/[\/\\:*?"<>|]/g, "_");
-            zip.file(safeSheet + "/" + safeName, blob);
+      // Test Excel API
+      try {
+        addLog("Testing Excel.run...", "inf");
+        Excel.run(function(ctx) {
+          var sheets = ctx.workbook.worksheets;
+          sheets.load("items/name");
+          return ctx.sync().then(function() {
+            addLog("Excel.run OK — found " + sheets.items.length + " sheet(s)", "ok");
+            sheets.items.forEach(function(s) {
+              addLog("  Sheet: " + s.name, "inf");
+            });
           });
+        }).catch(function(e) {
+          addLog("Excel.run failed: " + e.message, "err");
         });
-      });
-    });
-    return chain.then(function() {
-      document.getElementById("loading-text").textContent = "Compressing...";
-      return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    }).then(function(content) {
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(content);
-      a.download = "Workpaper_Export_" + new Date().toISOString().slice(0,10) + ".zip";
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast("Export complete — " + done + " file(s)!", "success");
-    });
-  }).catch(function(e) { toast("Export failed: " + e.message, "error", 8000); }).then(function() { hideLoading(); });
-};
+      } catch(e) {
+        addLog("Excel object error: " + e.message, "err");
+      }
 
-Office.onReady(function() {
-  var view = new URLSearchParams(window.location.search).get("view") || "upload";
-  switchView(view);
-  initUpload();
-});
+      // Test fetch
+      addLog("Testing fetch to graph.microsoft.com...", "inf");
+      fetch("https://graph.microsoft.com/v1.0/$metadata", { method: "GET" })
+        .then(function(r) { addLog("Fetch to Graph: HTTP " + r.status, r.status < 500 ? "ok" : "err"); })
+        .catch(function(e) { addLog("Fetch to Graph FAILED: " + e.message, "err"); });
 
+      // Test MSAL CDN reachability
+      addLog("Testing MSAL CDN...", "inf");
+      fetch("https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js", { method: "HEAD" })
+        .then(function(r) { addLog("MSAL CDN reachable: HTTP " + r.status, r.status === 200 ? "ok" : "err"); })
+        .catch(function(e) { addLog("MSAL CDN FAILED: " + e.message, "err"); });
+    });
+  } catch(e) {
+    addLog("Office.onReady threw: " + e.message, "err");
+  }
+}
+
+// Give office.js time to load if it hasn't yet
+if (typeof Office !== "undefined") {
+  waitForOffice();
+} else {
+  setTimeout(waitForOffice, 2000);
+}
 </script>
 </body>
 </html>
